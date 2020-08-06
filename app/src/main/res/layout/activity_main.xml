@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    tools:context=".MainActivity">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <TableLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:stretchColumns="1">
+
+            <TableRow>
+
+                <TextView android:text="@string/client_address" />
+
+                <TextView
+                    android:id="@+id/tvClientAddr"
+                    android:gravity="center" />
+            </TableRow>
+
+            <TableRow>
+
+                <TextView
+                    android:labelFor="@+id/etClientPort"
+                    android:text="@string/client_port" />
+
+                <EditText
+                    android:id="@+id/etClientPort"
+                    android:gravity="center"
+                    android:importantForAutofill="no"
+                    android:inputType="number" />
+            </TableRow>
+
+
+            <TableRow>
+
+                <TextView
+                    android:labelFor="@+id/etServerAddr"
+                    android:text="@string/server_address" />
+
+                <EditText
+                    android:id="@+id/etServerAddr"
+                    android:gravity="center"
+                    android:importantForAutofill="no"
+                    android:inputType="textUri" />
+            </TableRow>
+
+            <TableRow>
+
+                <TextView
+                    android:labelFor="@+id/etServerPort"
+                    android:text="@string/server_port" />
+
+                <EditText
+                    android:id="@+id/etServerPort"
+                    android:gravity="center"
+                    android:importantForAutofill="no"
+                    android:inputType="number" />
+            </TableRow>
+
+            <TableRow>
+
+                <TextView android:text="@string/bus" />
+
+                <RadioGroup android:orientation="horizontal">
+
+                    <RadioButton
+                        android:id="@+id/rbBusInput"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/input" />
+
+                    <RadioButton
+                        android:id="@+id/rbBusPlayback"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/playback" />
+
+                    <RadioButton
+                        android:id="@+id/rbBusOutput"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/output" />
+
+                </RadioGroup>
+            </TableRow>
+
+            <TableRow>
+
+                <TextView
+                    android:labelFor="@+id/etObjectAddress"
+                    android:text="@string/object_address" />
+
+                <EditText
+                    android:id="@+id/etObjectAddress"
+                    android:gravity="center"
+                    android:importantForAutofill="no"
+                    android:inputType="text" />
+
+            </TableRow>
+        </TableLayout>
+
+        <TextView
+            android:id="@+id/tvVolumeVal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/volume_max" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <SeekBar
+                android:id="@+id/sbVolumeMax"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="100000"
+                android:min="0"
+                android:paddingStart="48dp"
+                android:paddingEnd="48dp" />
+
+            <TextView
+                android:id="@+id/tvVolumeMax"
+                android:layout_width="64dp"
+                android:layout_height="wrap_content"
+                android:gravity="center" />
+
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/volume_min" />
+
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <SeekBar
+                android:id="@+id/sbVolumeMin"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="100000"
+                android:min="0"
+                android:paddingStart="48dp"
+                android:paddingEnd="48dp" />
+
+            <TextView
+                android:id="@+id/tvVolumeMin"
+                android:layout_width="64dp"
+                android:layout_height="wrap_content"
+                android:gravity="center" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/volume" />
+
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <SeekBar
+                android:id="@+id/sbVolume"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="100000"
+                android:min="0"
+                android:paddingStart="48dp"
+                android:paddingEnd="48dp" />
+
+            <TextView
+                android:id="@+id/tvVolume"
+                android:layout_width="64dp"
+                android:layout_height="wrap_content"
+                android:gravity="center" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <TextView
+            android:id="@+id/tvMap"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+    </ScrollView>
+
+</LinearLayout>
