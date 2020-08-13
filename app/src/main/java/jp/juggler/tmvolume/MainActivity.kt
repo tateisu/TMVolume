@@ -191,6 +191,9 @@ class MainActivity : ScopedActivity() {
         sbVolumeMax.progress = pref.getInt(PREF_VOLUME_MAX, seekBarScaling.toInt())
         sbVolume.progress = pref.getInt(PREF_VOLUME, seekBarScaling.toInt() / 2)
 
+        sbVolumeMax.min = sbVolumeMin.progress
+        sbVolumeMin.max = sbVolumeMax.progress
+
         when (pref.getInt(PREF_BUS, 0)) {
             1 -> rbBusPlayback
             2 -> rbBusOutput

@@ -725,7 +725,7 @@ object FaderVol {
 
     init {
         for (i in list.indices) {
-            if(i==0) continue
+            if (i == 0) continue
             val a = list[i - 1]
             val b = list[i]
             if (a.faderMax >= b.faderMin) {
@@ -747,7 +747,7 @@ object FaderVol {
                 width = width2
                 continue
             } else if (fader > o.faderMax) {
-                val skip = width2+1
+                val skip = width2 + 1
                 width -= skip
                 start += skip
             } else {
@@ -759,9 +759,10 @@ object FaderVol {
         for (i in IntRange(max(0, start - 1), min(list.size - 1, start + 1))) {
             val o = list[i]
             val delta = abs(fader - (o.faderMax + o.faderMin) / 2.0)
-            if (delta > findDelta) continue
-            findDelta = delta
-            findDb = o.db
+            if (delta < findDelta) {
+                findDelta = delta
+                findDb = o.db
+            }
         }
         return findDb?.formatDb() ?: "?? dB"
     }
