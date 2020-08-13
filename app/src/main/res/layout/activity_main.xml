@@ -68,7 +68,10 @@
 
             <TableRow>
 
-                <TextView android:text="@string/bus" />
+                <TextView
+                    android:layout_height="match_parent"
+                    android:gravity="center_vertical"
+                    android:text="@string/bus" />
 
                 <RadioGroup android:orientation="horizontal">
 
@@ -141,7 +144,7 @@
                 android:id="@+id/tvVolumeMax"
                 android:layout_width="64dp"
                 android:layout_height="wrap_content"
-                android:gravity="center" />
+                android:gravity="end|center_vertical" />
 
         </LinearLayout>
 
@@ -149,7 +152,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/volume_min" />
-
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -171,7 +173,7 @@
                 android:id="@+id/tvVolumeMin"
                 android:layout_width="64dp"
                 android:layout_height="wrap_content"
-                android:gravity="center" />
+                android:gravity="end|center_vertical" />
         </LinearLayout>
 
         <TextView
@@ -200,7 +202,7 @@
                 android:id="@+id/tvVolume"
                 android:layout_width="64dp"
                 android:layout_height="wrap_content"
-                android:gravity="center" />
+                android:gravity="end|center_vertical" />
 
         </LinearLayout>
 

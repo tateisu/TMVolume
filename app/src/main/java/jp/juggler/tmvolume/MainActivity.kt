@@ -178,6 +178,8 @@ class MainActivity : ScopedActivity() {
         sbVolumeMin.addListener(PREF_VOLUME_MIN) { sbVolumeMax.min = it }
         sbVolumeMax.addListener(PREF_VOLUME_MAX) { sbVolumeMin.max = it }
         sbVolume.addListener(PREF_VOLUME) {}
+
+//        findViewById<Button>(R.id.btnScan).setOnClickListener { scan() }
     }
 
     private fun loadPref() {
@@ -213,9 +215,9 @@ class MainActivity : ScopedActivity() {
     }
 
     private fun showVolumeNumber() {
-        tvVolumeMin.text = String.format("%.3f", sbVolumeMin.progressDouble * db0)
-        tvVolumeMax.text = String.format("%.3f", sbVolumeMax.progressDouble * db0)
-        tvVolume.text = String.format("%.3f", getVolumeValue())
+        tvVolumeMin.text = FaderVol.fromFader(sbVolumeMin.progressDouble * db0)
+        tvVolumeMax.text = FaderVol.fromFader(sbVolumeMax.progressDouble * db0)
+        tvVolume.text = FaderVol.fromFader(getVolumeValue().toDouble())
     }
 
     private fun showError(msg: String) {
@@ -311,17 +313,16 @@ class MainActivity : ScopedActivity() {
         }
     }
 
-    private val map = ConcurrentHashMap<String, String>()
+    private var objectMap = ConcurrentHashMap<String, String>()
 
     private val procShowMap: Runnable = Runnable {
-        val sb = StringBuilder()
-        map.keys().toList().sorted().forEach {
-            if (sb.isNotEmpty()) sb.append("\n")
-            sb.append("${it}=${map[it]}")
-        }
-        tvMap.text = sb.toString()
-
-        tvVolumeVal.text = (map["${etObjectAddress.text}Val"] ?: "?").trim(',')
+        tvMap.text = StringBuilder().apply {
+            objectMap.keys().toList().sorted().forEach {
+                if (isNotEmpty()) append("\n")
+                append("${it}=${objectMap[it]}")
+            }
+        }.toString()
+        tvVolumeVal.text = (objectMap["${etObjectAddress.text}Val"] ?: "?").trim(',')
     }
 
     private fun fireShowMap() {
@@ -329,7 +330,7 @@ class MainActivity : ScopedActivity() {
         handler.postDelayed(procShowMap, 333L)
     }
 
-    private fun OSCPacket.dump() {
+    private fun OSCPacket.dump(dstMap: ConcurrentHashMap<String, String>) {
         when (this) {
             is OSCMessage -> {
                 // Log.d("TMVolume", "Message addr=${address}")
@@ -338,12 +339,11 @@ class MainActivity : ScopedActivity() {
                     sb.append(',')
                     sb.append(String.format("%s", it))
                 }
-                map[address] = sb.toString()
-                fireShowMap()
+                dstMap[address] = sb.toString()
             }
             is OSCBundle -> {
                 // Log.d("TMVolume", "Bundle")
-                packets?.forEach { it?.dump() }
+                packets?.forEach { it?.dump(dstMap) }
             }
         }
     }
@@ -357,7 +357,7 @@ class MainActivity : ScopedActivity() {
             ex.printStackTrace()
         }
         receiver = null
-        map.clear()
+        objectMap = ConcurrentHashMap()
     }
 
     private fun startListen() {
@@ -366,13 +366,27 @@ class MainActivity : ScopedActivity() {
         } catch (ex: Throwable) {
             ex.printStackTrace()
         }
+        objectMap = ConcurrentHashMap()
+        fireShowMap()
         receiver = try {
             val port = etClientPort.text.toString().trim().toIntOrNull()
-            if (port == null || port <= 1024 ) null else OSCPortIn(port).apply {
+            if (port == null || port <= 1024) null else OSCPortIn(port).apply {
                 addPacketListener(object : OSCPacketListener {
                     override fun handleBadData(event: OSCBadDataEvent?) = Unit
                     override fun handlePacket(event: OSCPacketEvent?) {
-                        event?.packet?.dump()
+                        val map = ConcurrentHashMap<String, String>()
+                        event?.packet?.dump(map)
+                        for (i in 1..8) {
+                            val va = map["/1/volume$i"]?.trim(',')
+                            val vb = map["/1/volume${i}Val"]
+                            if (va == null || vb == null) continue
+                            if (va == "0.0") continue
+                            Log.d("TMVolume", "volumeVal $va $vb")
+                        }
+                        for (entry in map.entries) {
+                            objectMap[entry.key] = entry.value
+                        }
+                        fireShowMap()
                     }
                 })
                 startListening()
@@ -382,8 +396,21 @@ class MainActivity : ScopedActivity() {
             showError("${ex.javaClass.simpleName} : ${ex.message}")
             null
         }
-        map.clear()
-        fireShowMap()
+    }
+
+    private fun scan() = launch(activityJob + Dispatchers.IO) {
+        var willBreak = false
+        for (i in 0..10000) {
+            if (willBreak) break
+            runOnUiThread {
+                if (isDestroyed) {
+                    willBreak = true
+                } else {
+                    send(value = i.toFloat() / 10000f)
+                }
+            }
+            delay(1000)
+        }
     }
 }
 
