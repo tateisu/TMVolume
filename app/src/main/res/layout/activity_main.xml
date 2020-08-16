@@ -20,10 +20,9 @@
             <TableRow>
 
                 <TextView
-                    android:text="@string/client"
-                    android:textSize="12sp"
                     android:layout_marginEnd="2dp"
-                    />
+                    android:text="@string/client"
+                    android:textSize="12sp" />
 
                 <TextView
                     android:text="@string/address"
@@ -48,9 +47,9 @@
             <TableRow>
 
                 <TextView
+                    android:layout_marginEnd="2dp"
                     android:text="@string/server"
                     android:textSize="12sp"
-                    android:layout_marginEnd="2dp"
 
                     />
 
@@ -96,23 +95,23 @@
 
                     <RadioButton
                         android:id="@+id/rbBusInput"
-                        android:layout_weight="1"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:layout_weight="1"
                         android:text="@string/input" />
 
                     <RadioButton
                         android:id="@+id/rbBusPlayback"
-                        android:layout_weight="1"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:layout_weight="1"
                         android:text="@string/playback" />
 
                     <RadioButton
                         android:id="@+id/rbBusOutput"
-                        android:layout_weight="1"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:layout_weight="1"
                         android:text="@string/output" />
 
                 </RadioGroup>
@@ -145,63 +144,6 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/volume_max"
-                android:textSize="12sp" />
-
-            <TextView
-                android:id="@+id/tvVolumeMax"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="end|center_vertical" />
-        </LinearLayout>
-
-        <SeekBar
-            android:id="@+id/sbVolumeMax"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="100000"
-            android:min="0"
-            android:paddingStart="20dp"
-            android:paddingEnd="20dp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/volume_min"
-                android:textSize="12sp" />
-
-            <TextView
-                android:id="@+id/tvVolumeMin"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="end|center_vertical" />
-        </LinearLayout>
-
-        <SeekBar
-            android:id="@+id/sbVolumeMin"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="100000"
-            android:min="0"
-            android:paddingStart="20dp"
-            android:paddingEnd="20dp" />
-
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
 
             android:orientation="horizontal">
 
@@ -219,14 +161,50 @@
                 android:gravity="end|center_vertical" />
         </LinearLayout>
 
-        <SeekBar
-            android:id="@+id/sbVolume"
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="100000"
-            android:min="0"
-            android:paddingStart="20dp"
-            android:paddingEnd="20dp" />
+            android:layout_height="40dp"
+            android:orientation="horizontal"
+            >
+
+            <SeekBar
+                android:id="@+id/sbVolume"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:max="143"
+                android:min="0"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp" />
+
+            <ImageButton
+                android:id="@+id/btnMinus"
+                android:layout_width="40dp"
+                android:layout_height="match_parent"
+                android:layout_marginStart="4dp"
+                android:contentDescription="@string/decrease"
+                android:src="@drawable/ic_minus" />
+
+            <ImageButton
+                android:id="@+id/btnPlus"
+                android:layout_width="40dp"
+                android:layout_height="match_parent"
+                android:layout_marginStart="4dp"
+                android:contentDescription="@string/increase"
+                android:src="@drawable/ic_add" />
+            <Button
+                android:id="@+id/btnZero"
+                android:layout_width="40dp"
+                android:layout_height="match_parent"
+                android:minWidth="0dp"
+                android:layout_marginStart="4dp"
+                android:contentDescription="@string/increase"
+                android:text="0"
+                android:textSize="18dp"
+                android:textStyle="bold"
+                android:includeFontPadding="false"
+                 />
+        </LinearLayout>
 
     </LinearLayout>
 

@@ -6,7 +6,7 @@ import kotlin.math.min
 
 object FaderVol {
 
-    private val params= doubleArrayOf(
+    private val params = doubleArrayOf(
         // db, faderMin, faderMax,
         -66.0, 0.0000, 0.0000,
         -65.0, 0.0001, 0.0003,
@@ -722,16 +722,16 @@ object FaderVol {
         6.0, 0.9985, 1.0000
     )
 
-    private val sampleSize = params.size/3
-    private fun db(idx:Int) = params[idx*3+0]
-    private fun faderMin(idx:Int) = params[idx*3+1]
-    private fun faderMax(idx:Int) = params[idx*3+2]
+    private val sampleSize = params.size / 3
+    private fun db(idx: Int) = params[idx * 3 + 0]
+    private fun faderMin(idx: Int) = params[idx * 3 + 1]
+    private fun faderMax(idx: Int) = params[idx * 3 + 2]
 
     init {
-        for( i in 0 until sampleSize){
+        for (i in 0 until sampleSize) {
             if (i == 0) continue
-            if (faderMax(i-1) >= faderMin(i)) {
-                error("db=${db(i)} faderMax ${faderMax(i-1)} >= faderMin ${faderMin(i)}")
+            if (faderMax(i - 1) >= faderMin(i)) {
+                error("db=${db(i)} faderMax ${faderMax(i - 1)} >= faderMin ${faderMin(i)}")
             }
         }
     }
@@ -766,5 +766,43 @@ object FaderVol {
             }
         }
         return findDb?.formatDb() ?: "?? dB"
+    }
+
+    fun formatDb(db: Float) = when {
+        db <= -66f -> "-∞ dB"
+        db >= 0f -> String.format("%.1f dB", db)
+        else -> String.format("%.1f dB", db)
+    }
+
+    fun fromDb(db: Float): Double {
+        if (db <= -66f) return 0.0
+        if (db >= 6f) return 1.0
+        if (db == 0f) return 0.81720435
+        var width = sampleSize
+        var start = 0
+        while (width > 0) {
+            val width2 = (width shr 1)
+            val idx = start + width2
+            if (db < db(idx)) {
+                width = width2
+                continue
+            } else if (db > db(idx)) {
+                val skip = width2 + 1
+                width -= skip
+                start += skip
+            } else {
+                return (faderMin(idx) + faderMax(idx)) * 0.5
+            }
+        }
+        var findDelta = Double.MAX_VALUE
+        var findFader: Double? = null
+        for (i in IntRange(max(0, start - 1), min(sampleSize - 1, start + 1))) {
+            val delta = abs(db - db(i))
+            if (delta < findDelta) {
+                findDelta = delta
+                findFader = (faderMax(i) + faderMin(i)) * 0.5
+            }
+        }
+        return findFader ?: 0.0
     }
 }

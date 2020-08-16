@@ -14,7 +14,7 @@ tiny android app that remote control volume of RME TotalMix FX.
 
 - App's "Bus" means TotalMix's Hardware Inputs, Software Playbacks, Hardware Outputs. Maybe you want to choose `Output`.
 - App's "Object Addr." is usually like as `/1/volume{channel}`. The channel designation is not the name, but the order of the volume faders you see in TotalMix. For example, if you see AN1/2 on the left edge, its channel number is 1, and the fader on the right next is 2.
-- App's volume slider sends fader position to TotalMix. You cannot specify the dB value to send. This is a limitation on the TotalMix side.
+- App's volume slider shows dB, but it sends TotalMix's fader position value. This is a limitation of TotalMix.
 
 ## See Also
 

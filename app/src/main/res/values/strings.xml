@@ -16,4 +16,6 @@
     <string name="volume_min">Volume Min.</string>
     <string name="volume_max">Volume Max.</string>
     <string name="volume">Volume</string>
+    <string name="decrease">Decrease</string>
+    <string name="increase">Increase</string>
 </resources>

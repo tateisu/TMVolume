@@ -9,6 +9,7 @@ import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
+import android.view.View
 import android.widget.*
 import com.illposed.osc.*
 import com.illposed.osc.transport.udp.OSCPortIn
@@ -29,20 +30,21 @@ class MainActivity : ScopedActivity() {
         const val PREF_SERVER_ADDR = "ServerAddr"
         const val PREF_SERVER_PORT = "ServerPort"
         const val PREF_OBJECT_ADDR = "ObjectAddr"
-        const val PREF_VOLUME_MIN = "VolumeMin"
-        const val PREF_VOLUME_MAX = "VolumeMAX"
         const val PREF_VOLUME = "Volume"
         const val PREF_BUS = "Bus"
 
         fun String?.notEmpty() = if (this?.isNotEmpty() == true) this else null
 
-        const val db0 = 0.81720435
-        private const val seekBarScaling = 100000.0
+        fun Int.clip(min: Int, max: Int) = if (this < min) min else if (this > max) max else this
 
+        fun avg(a:Int,b:Int) = (a+b)/2
 
-        val SeekBar.progressDouble: Double
-            get() = progress.toDouble() / seekBarScaling
-
+        var View.isEnabledAlpha:Boolean
+            get()= isEnabled
+            set(value){
+                isEnabled = value
+                alpha = if(value) 1.0f else 0.3f
+            }
     }
 
     private lateinit var tvClientAddr: TextView
@@ -54,14 +56,14 @@ class MainActivity : ScopedActivity() {
     private lateinit var rbBusPlayback: RadioButton
     private lateinit var rbBusOutput: RadioButton
 
-    private lateinit var sbVolumeMin: SeekBar
-    private lateinit var sbVolumeMax: SeekBar
-    private lateinit var sbVolume: SeekBar
-    private lateinit var tvVolumeMin: TextView
-    private lateinit var tvVolumeMax: TextView
-    private lateinit var tvVolume: TextView
-    private lateinit var tvMap: TextView
     private lateinit var tvVolumeVal: TextView
+    private lateinit var sbVolume: SeekBar
+    private lateinit var tvVolume: TextView
+    private lateinit var btnMinus: ImageButton
+    private lateinit var btnPlus: ImageButton
+    private lateinit var btnZero: Button
+
+    private lateinit var tvMap: TextView
 
     private var restoreBusy = false
     private lateinit var pref: SharedPreferences
@@ -111,6 +113,8 @@ class MainActivity : ScopedActivity() {
         showVolumeNumber()
     }
 
+    ///////////////////////////////////////////////////////
+
     private fun EditText.addSaver(key: String, callback: (String) -> Unit = {}) =
         addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(p0: CharSequence, p1: Int, p2: Int, p3: Int) = Unit
@@ -129,20 +133,6 @@ class MainActivity : ScopedActivity() {
             if (isChecked) pref.edit().putInt(key, value).apply()
         }
 
-    private fun SeekBar.addListener(key: String, cb: (Int) -> Unit) {
-        setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onStartTrackingTouch(var1: SeekBar) = Unit
-            override fun onStopTrackingTouch(var1: SeekBar) = Unit
-            override fun onProgressChanged(var1: SeekBar, var2: Int, var3: Boolean) {
-                if (restoreBusy) return
-                pref.edit().putInt(key, var1.progress).apply()
-                cb(var1.progress)
-                showVolumeNumber()
-                send()
-            }
-        })
-    }
-
     private fun initUi() {
         setContentView(R.layout.activity_main)
 
@@ -151,12 +141,8 @@ class MainActivity : ScopedActivity() {
         etServerAddr = findViewById(R.id.etServerAddr)
         etServerPort = findViewById(R.id.etServerPort)
         etObjectAddress = findViewById(R.id.etObjectAddress)
-        sbVolumeMin = findViewById(R.id.sbVolumeMin)
-        sbVolumeMax = findViewById(R.id.sbVolumeMax)
         sbVolume = findViewById(R.id.sbVolume)
 
-        tvVolumeMin = findViewById(R.id.tvVolumeMin)
-        tvVolumeMax = findViewById(R.id.tvVolumeMax)
         tvVolume = findViewById(R.id.tvVolume)
 
         rbBusInput = findViewById(R.id.rbBusInput)
@@ -165,6 +151,10 @@ class MainActivity : ScopedActivity() {
 
         tvMap = findViewById(R.id.tvMap)
         tvVolumeVal = findViewById(R.id.tvVolumeVal)
+
+        btnMinus = findViewById(R.id.btnMinus)
+        btnPlus = findViewById(R.id.btnPlus)
+        btnZero = findViewById(R.id.btnZero)
 
         etClientPort.addSaver(PREF_CLIENT_PORT) { startListen() }
         etServerAddr.addSaver(PREF_SERVER_ADDR)
@@ -175,24 +165,30 @@ class MainActivity : ScopedActivity() {
         rbBusPlayback.addSaver(PREF_BUS, 1)
         rbBusOutput.addSaver(PREF_BUS, 2)
 
-        sbVolumeMin.addListener(PREF_VOLUME_MIN) { sbVolumeMax.min = it }
-        sbVolumeMax.addListener(PREF_VOLUME_MAX) { sbVolumeMin.max = it }
-        sbVolume.addListener(PREF_VOLUME) {}
+        sbVolume.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onStartTrackingTouch(var1: SeekBar) = Unit
+            override fun onStopTrackingTouch(var1: SeekBar) = Unit
+            override fun onProgressChanged(var1: SeekBar, var2: Int, var3: Boolean) {
+                if (restoreBusy) return
+                pref.edit().putInt(PREF_VOLUME, var1.progress).apply()
+                showVolumeNumber()
+                send()
+            }
+        })
 
-//        findViewById<Button>(R.id.btnScan).setOnClickListener { scan() }
+        btnPlus.setOnClickListener { setVolume(sbVolume.progress+1) }
+        btnMinus.setOnClickListener { setVolume(sbVolume.progress-1) }
+        btnZero.setOnClickListener { setVolume(sbVolume.max - 6*2 ) }
     }
+
 
     private fun loadPref() {
         etClientPort.setText(pref.getString(PREF_CLIENT_PORT, "9001"))
         etServerAddr.setText(pref.getString(PREF_SERVER_ADDR, ""))
         etServerPort.setText(pref.getString(PREF_SERVER_PORT, "7001"))
         etObjectAddress.setText(pref.getString(PREF_OBJECT_ADDR, "/1/volume1"))
-        sbVolumeMin.progress = pref.getInt(PREF_VOLUME_MIN, 0)
-        sbVolumeMax.progress = pref.getInt(PREF_VOLUME_MAX, seekBarScaling.toInt())
-        sbVolume.progress = pref.getInt(PREF_VOLUME, seekBarScaling.toInt() / 2)
-
-        sbVolumeMax.min = sbVolumeMin.progress
-        sbVolumeMin.max = sbVolumeMax.progress
+        sbVolume.progress = pref.getInt(PREF_VOLUME, avg(sbVolume.min,sbVolume.max) )
+            .clip(sbVolume.min,sbVolume.max)
 
         when (pref.getInt(PREF_BUS, 0)) {
             1 -> rbBusPlayback
@@ -201,26 +197,23 @@ class MainActivity : ScopedActivity() {
         }.isChecked = true
     }
 
-    private fun getVolumeValue(): Float {
-        val max = sbVolumeMax.progressDouble
-        val min = sbVolumeMin.progressDouble
-        val width = max - min
-        val curr = when {
-            width <= 0f -> min
-            else -> min + width * sbVolume.progressDouble
-        }
-        Log.d("TMVolume", String.format("curr=%f", curr))
-        return if (curr == 0.0) {
-            0f
-        } else {
-            (curr * db0).toFloat()
-        }
+    private fun setVolume(newProgress: Int) {
+        val oldVal = sbVolume.progress
+        val newVal = newProgress.clip( sbVolume.min,sbVolume.max )
+        if (newVal != oldVal) sbVolume.progress = newVal
     }
 
     private fun showVolumeNumber() {
-        tvVolumeMin.text = FaderVol.fromFader(sbVolumeMin.progressDouble * db0)
-        tvVolumeMax.text = FaderVol.fromFader(sbVolumeMax.progressDouble * db0)
-        tvVolume.text = FaderVol.fromFader(getVolumeValue().toDouble())
+        val db = 6f - (sbVolume.max - sbVolume.progress) * 0.5f
+        tvVolume.text = FaderVol.formatDb(db)
+        btnMinus.isEnabledAlpha = sbVolume.progress != sbVolume.min
+        btnPlus.isEnabledAlpha = sbVolume.progress != sbVolume.max
+        btnZero.isEnabledAlpha = sbVolume.progress != (sbVolume.max - 6*2)
+    }
+
+    private fun getFaderValue(): Float {
+        val db = 6f - (sbVolume.max - sbVolume.progress) * 0.5f
+        return FaderVol.fromDb(db).toFloat()
     }
 
     private fun showError(msg: String) {
@@ -248,7 +241,7 @@ class MainActivity : ScopedActivity() {
             else -> "/1/busInput"
         },
         objectAddr: String? = etObjectAddress.text.toString().trim().notEmpty(),
-        value: Float = getVolumeValue()
+        value: Float = getFaderValue()
     ) {
         val args = arrayListOf<Any>(value)
 
@@ -398,21 +391,6 @@ class MainActivity : ScopedActivity() {
             ex.printStackTrace()
             showError("${ex.javaClass.simpleName} : ${ex.message}")
             null
-        }
-    }
-
-    private fun scan() = launch(activityJob + Dispatchers.IO) {
-        var willBreak = false
-        for (i in 0..10000) {
-            if (willBreak) break
-            runOnUiThread {
-                if (isDestroyed) {
-                    willBreak = true
-                } else {
-                    send(value = i.toFloat() / 10000f)
-                }
-            }
-            delay(1000)
         }
     }
 }
