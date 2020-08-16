@@ -16,10 +16,78 @@ while(<DATA>){
 	$fader < $o->{faderMin} and $o->{faderMin} = $fader;
 	$fader > $o->{faderMax} and $o->{faderMax} = $fader;
 }
+
+my $rx =[];
+my $ry =[];
+print "// db, faderMin, faderMax, \n";
 for my $db ( sort {$a <=> $b} keys %a){
 	my $o = $a{$db};
-	printf "Item(db=%.1f, faderMin=%.4f, faderMax=%.4f),\n",$o->{db}, $o->{faderMin}, $o->{faderMax};
+	printf "%.1f, %.4f, %.4f,\n",$o->{db}, $o->{faderMin}, $o->{faderMax};
+	# printf "%.1f\t%.10f\n",$o->{db}, ($o->{faderMin}+ $o->{faderMax})/2;
+	next if $db < -65 || $db >= 6;
+	push @$rx, ($o->{faderMin}+ $o->{faderMax})/2;
+	push @$ry, $o->{db};
 }
+
+use Algorithm::CurveFit::Simple qw(fit);
+ 
+my ($max_dev, $avg_dev, $src) = fit(xdata => $rx, ydata => $ry,terms => 5,time_limit => 300);
+print "$max_dev, $avg_dev\n$src\n";
+
+my ($max_dev, $avg_dev, $src) = fit(xdata => $rx, ydata => $ry,terms => 5,time_limit => 300,inv =>1);
+print "$max_dev, $avg_dev\n$src\n";
+
+sub x2y {
+    my($x) = @_;
+
+#    my $y = -65.56120299177 + 164.74780190260 * $x + -141.19273712061 * $x**2 + 47.16122206233 * $x**3;
+#    my $y = -64.87955977296 + 148.54050562657 * $x + -56.98101751631 * $x**2 + -104.03122471602 * $x**3 + 95.15951981946 * $x**4 + -11.41249111591 * $x**5;
+    my $y = -64.88271558464 + 148.66591487839 * $x + -58.08976763858 * $x**2 + -100.42954567764 * $x**3 + 90.36576997811 * $x**4 + -9.19556091100 * $x**5;
+
+    return $y;
+}
+sub y2x {
+    my($x) = @_;
+#    my $y = 0.80701946321 + 0.02983757532 * $x + 0.00050409870 * $x**2 + 0.00000369772 * $x**3;
+#    my $y = 0.80666702331 + 0.03141570915 * $x + 0.00060385667 * $x**2 + 0.00000348165 * $x**3 + -0.00000007627 * $x**4 + -0.00000000087 * $x**5;
+    my $y = 0.80673517529 + 0.03149257437 * $x + 0.00061302163 * $x**2 + 0.00000386491 * $x**3 + -0.00000006965 * $x**4 + -0.00000000083 * $x**5;
+    return $y;
+}
+
+
+my $sample;
+
+my $sampleDev = undef;
+for my $db ( sort {$a <=> $b} keys %a){
+	next if $db < -65 || $db >= 6;
+	my $o = $a{$db};
+	my $x = ($o->{faderMin}+ $o->{faderMax})/2;
+	my $y = $o->{db};
+	my $cx = y2x($y);
+	my $x_dev = abs($x-$cx);
+	if( not defined $sampleDev or $x_dev > $sampleDev){
+		$sampleDev = $x_dev;
+		$sample = "y=$y,x=$x,$cx, x_dev=$x_dev\n" ;
+	}
+}
+print $sample;
+
+$sampleDev = undef;
+for my $db ( sort {$a <=> $b} keys %a){
+	next if $db < -65 || $db >= 6;
+
+	my $o = $a{$db};
+	my $x = ($o->{faderMin}+ $o->{faderMax})/2;
+	my $y = $o->{db};
+	my $cy = x2y($x);
+	my $y_dev = abs($y-$cy);
+	if( not defined $sampleDev or $y_dev > $sampleDev){
+		$sampleDev = $y_dev;
+		$sample = "x=$x,y=$y,cy=$cy, y_dev=$y_dev\n" ;
+	}
+}
+print $sample;
+
 
 __DATA__
 --------- beginning of main
