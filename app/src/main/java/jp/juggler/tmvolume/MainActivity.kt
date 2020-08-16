@@ -42,6 +42,7 @@ class MainActivity : ScopedActivity() {
         var View.isEnabledAlpha:Boolean
             get()= isEnabled
             set(value){
+                if( value == isEnabled) return
                 isEnabled = value
                 alpha = if(value) 1.0f else 0.3f
             }

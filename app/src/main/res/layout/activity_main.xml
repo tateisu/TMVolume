@@ -144,7 +144,7 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-
+            android:gravity="center_vertical"
             android:orientation="horizontal">
 
             <TextView
@@ -159,28 +159,11 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:gravity="end|center_vertical" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="40dp"
-            android:orientation="horizontal"
-            >
-
-            <SeekBar
-                android:id="@+id/sbVolume"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:max="143"
-                android:min="0"
-                android:paddingStart="20dp"
-                android:paddingEnd="20dp" />
 
             <ImageButton
                 android:id="@+id/btnMinus"
                 android:layout_width="40dp"
-                android:layout_height="match_parent"
+                android:layout_height="40dp"
                 android:layout_marginStart="4dp"
                 android:contentDescription="@string/decrease"
                 android:src="@drawable/ic_minus" />
@@ -188,23 +171,32 @@
             <ImageButton
                 android:id="@+id/btnPlus"
                 android:layout_width="40dp"
-                android:layout_height="match_parent"
+                android:layout_height="40dp"
                 android:layout_marginStart="4dp"
                 android:contentDescription="@string/increase"
                 android:src="@drawable/ic_add" />
+
             <Button
                 android:id="@+id/btnZero"
                 android:layout_width="40dp"
-                android:layout_height="match_parent"
-                android:minWidth="0dp"
+                android:layout_height="40dp"
                 android:layout_marginStart="4dp"
                 android:contentDescription="@string/increase"
+                android:includeFontPadding="false"
+                android:minWidth="0dp"
                 android:text="0"
                 android:textSize="18dp"
-                android:textStyle="bold"
-                android:includeFontPadding="false"
-                 />
+                android:textStyle="bold" />
         </LinearLayout>
+
+        <SeekBar
+            android:id="@+id/sbVolume"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:max="143"
+            android:min="0"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp" />
 
     </LinearLayout>
 

@@ -769,13 +769,13 @@ object FaderVol {
     }
 
     fun formatDb(db: Float) = when {
-        db <= -66f -> "-∞ dB"
+        db < -65f -> "-∞ dB"
         db >= 0f -> String.format("%.1f dB", db)
         else -> String.format("%.1f dB", db)
     }
 
     fun fromDb(db: Float): Double {
-        if (db <= -66f) return 0.0
+        if (db < -65f ) return 0.0
         if (db >= 6f) return 1.0
         if (db == 0f) return 0.81720435
         var width = sampleSize
