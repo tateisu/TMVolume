@@ -736,6 +736,7 @@ object FaderVol {
         }
     }
 
+    @Suppress("unused")
     fun fromFader(fader: Double): String {
         if (fader <= 0.0) return "-∞ dB"
         if (fader >= 1.0) return "+6 dB"
