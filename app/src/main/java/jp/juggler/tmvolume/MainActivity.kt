@@ -11,12 +11,16 @@ import android.text.TextWatcher
 import android.util.Log
 import android.view.View
 import android.widget.*
+import com.google.android.flexbox.FlexboxLayout
 import com.illposed.osc.*
 import com.illposed.osc.transport.udp.OSCPortIn
 import com.illposed.osc.transport.udp.OSCPortOut
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.Channel.Factory.CONFLATED
+import kotlinx.coroutines.launch
 import java.io.IOException
 import java.math.BigInteger
 import java.net.InetAddress
@@ -26,25 +30,28 @@ import java.util.concurrent.ConcurrentHashMap
 class MainActivity : ScopedActivity() {
 
     companion object {
+        const val TAG = "TMVolume"
+
         const val PREF_CLIENT_PORT = "ClientPort"
         const val PREF_SERVER_ADDR = "ServerAddr"
         const val PREF_SERVER_PORT = "ServerPort"
         const val PREF_OBJECT_ADDR = "ObjectAddr"
         const val PREF_VOLUME = "Volume"
         const val PREF_BUS = "Bus"
+        const val PREF_PRESETS = "Presets"
 
         fun String?.notEmpty() = if (this?.isNotEmpty() == true) this else null
 
         fun Int.clip(min: Int, max: Int) = if (this < min) min else if (this > max) max else this
 
-        fun avg(a:Int,b:Int) = (a+b)/2
+        fun avg(a: Int, b: Int) = (a + b) / 2
 
-        var View.isEnabledAlpha:Boolean
-            get()= isEnabled
-            set(value){
-                if( value == isEnabled) return
+        var View.isEnabledAlpha: Boolean
+            get() = isEnabled
+            set(value) {
+                if (value == isEnabled) return
                 isEnabled = value
-                alpha = if(value) 1.0f else 0.3f
+                alpha = if (value) 1.0f else 0.3f
             }
     }
 
@@ -62,7 +69,9 @@ class MainActivity : ScopedActivity() {
     private lateinit var tvVolume: TextView
     private lateinit var btnMinus: ImageButton
     private lateinit var btnPlus: ImageButton
-    private lateinit var btnZero: Button
+
+    private lateinit var flPresets: FlexboxLayout
+    private lateinit var btnSave: ImageButton
 
     private lateinit var tvMap: TextView
 
@@ -71,6 +80,7 @@ class MainActivity : ScopedActivity() {
     private lateinit var handler: Handler
     private val channel = Channel<Message>(capacity = CONFLATED)
 
+    private var presets = mutableListOf<Int>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -135,7 +145,16 @@ class MainActivity : ScopedActivity() {
         }
 
     private fun initUi() {
+
         setContentView(R.layout.activity_main)
+        supportActionBar?.apply {
+            setSubtitle(R.string.header_subtitle)
+
+            setDisplayUseLogoEnabled(true)
+            setLogo(R.drawable.header_logo)
+            // 最後に呼び出す
+            setDisplayShowHomeEnabled(true)
+        }
 
         tvClientAddr = findViewById(R.id.tvClientAddr)
         etClientPort = findViewById(R.id.etClientPort)
@@ -155,7 +174,9 @@ class MainActivity : ScopedActivity() {
 
         btnMinus = findViewById(R.id.btnMinus)
         btnPlus = findViewById(R.id.btnPlus)
-        btnZero = findViewById(R.id.btnZero)
+
+        flPresets = findViewById(R.id.flPresets)
+        btnSave = findViewById(R.id.btnSave)
 
         etClientPort.addSaver(PREF_CLIENT_PORT) { startListen() }
         etServerAddr.addSaver(PREF_SERVER_ADDR)
@@ -177,9 +198,9 @@ class MainActivity : ScopedActivity() {
             }
         })
 
-        btnPlus.setOnClickListener { setVolume(sbVolume.progress+1) }
-        btnMinus.setOnClickListener { setVolume(sbVolume.progress-1) }
-        btnZero.setOnClickListener { setVolume(sbVolume.max - 6*2 ) }
+        btnPlus.setOnClickListener { setVolume(sbVolume.progress + 1) }
+        btnMinus.setOnClickListener { setVolume(sbVolume.progress - 1) }
+        btnSave.setOnClickListener { addPreset() }
     }
 
 
@@ -188,8 +209,13 @@ class MainActivity : ScopedActivity() {
         etServerAddr.setText(pref.getString(PREF_SERVER_ADDR, ""))
         etServerPort.setText(pref.getString(PREF_SERVER_PORT, "7001"))
         etObjectAddress.setText(pref.getString(PREF_OBJECT_ADDR, "/1/volume1"))
-        sbVolume.progress = pref.getInt(PREF_VOLUME, avg(sbVolume.min,sbVolume.max) )
-            .clip(sbVolume.min,sbVolume.max)
+        sbVolume.progress = pref.getInt(PREF_VOLUME, avg(sbVolume.min, sbVolume.max))
+            .clip(sbVolume.min, sbVolume.max)
+
+        presets =
+            pref.getString(PREF_PRESETS, "")!!.split(",").mapNotNull { it.toIntOrNull() }.sorted()
+                .toMutableList()
+        showPresets()
 
         when (pref.getInt(PREF_BUS, 0)) {
             1 -> rbBusPlayback
@@ -198,9 +224,56 @@ class MainActivity : ScopedActivity() {
         }.isChecked = true
     }
 
+    private fun showPresets() {
+        (0 until flPresets.childCount).reversed().forEach { i ->
+            val child = flPresets.getChildAt(i)
+            if (child is Button) {
+                flPresets.removeViewAt(i)
+            }
+        }
+        val w = (resources.displayMetrics.density*40f).toInt()
+        val h = (resources.displayMetrics.density*40f).toInt()
+        for (progress in presets) {
+            flPresets.addView(Button(this).apply {
+                layoutParams = FlexboxLayout.LayoutParams(
+                    FlexboxLayout.LayoutParams.WRAP_CONTENT,
+                    h
+                ).apply {}
+                val db = 6f - (sbVolume.max - progress) * 0.5f
+                text = if (db < -65f) "-∞" else String.format("%.1f", db)
+                minWidth = w
+                minimumWidth = w
+                setOnClickListener {
+                    sbVolume.progress = progress
+                }
+                setOnLongClickListener {
+                    removePreset(progress)
+                    true
+                }
+            })
+        }
+    }
+
+    private fun addPreset() {
+        val progress = sbVolume.progress
+        if (presets.contains(progress)) return
+        presets.add(progress)
+        presets.sort()
+        pref.edit().putString(PREF_PRESETS, presets.joinToString(",")).apply()
+        showPresets()
+        showVolumeNumber()
+    }
+
+    private fun removePreset(progress: Int) {
+        presets.remove(progress)
+        pref.edit().putString(PREF_PRESETS, presets.joinToString(",")).apply()
+        showPresets()
+        showVolumeNumber()
+    }
+
     private fun setVolume(newProgress: Int) {
         val oldVal = sbVolume.progress
-        val newVal = newProgress.clip( sbVolume.min,sbVolume.max )
+        val newVal = newProgress.clip(sbVolume.min, sbVolume.max)
         if (newVal != oldVal) sbVolume.progress = newVal
     }
 
@@ -209,7 +282,7 @@ class MainActivity : ScopedActivity() {
         tvVolume.text = FaderVol.formatDb(db)
         btnMinus.isEnabledAlpha = sbVolume.progress != sbVolume.min
         btnPlus.isEnabledAlpha = sbVolume.progress != sbVolume.max
-        btnZero.isEnabledAlpha = sbVolume.progress != (sbVolume.max - 6*2)
+        btnSave.isEnabledAlpha = !presets.contains(sbVolume.progress)
     }
 
     private fun getFaderValue(): Float {
@@ -330,7 +403,7 @@ class MainActivity : ScopedActivity() {
     private fun OSCPacket.dump(dstMap: ConcurrentHashMap<String, String>) {
         when (this) {
             is OSCMessage -> {
-                // Log.d("TMVolume", "Message addr=${address}")
+                // Log.d(TAG, "Message addr=${address}")
                 val sb = StringBuilder()
                 arguments?.forEach {
                     sb.append(',')
@@ -339,7 +412,7 @@ class MainActivity : ScopedActivity() {
                 dstMap[address] = sb.toString()
             }
             is OSCBundle -> {
-                // Log.d("TMVolume", "Bundle")
+                // Log.d(TAG, "Bundle")
                 packets?.forEach { it?.dump(dstMap) }
             }
         }
@@ -378,7 +451,7 @@ class MainActivity : ScopedActivity() {
                             val vb = map["/1/volume${i}Val"]
                             if (va == null || vb == null) continue
                             if (va == "0.0") continue
-                            Log.d("TMVolume", "volumeVal $va $vb")
+                            Log.d(TAG, "volumeVal $va $vb")
                         }
                         for (entry in map.entries) {
                             objectMap[entry.key] = entry.value

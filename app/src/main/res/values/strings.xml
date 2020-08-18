@@ -18,4 +18,8 @@
     <string name="volume">Volume</string>
     <string name="decrease">Decrease</string>
     <string name="increase">Increase</string>
+    <string name="header_subtitle">Volume controller for TotalMix FX</string>
+    <string name="save">Save</string>
+    <string name="presets">Presets</string>
+    <string name="presets_desc">(long tap to delete preset)</string>
 </resources>
