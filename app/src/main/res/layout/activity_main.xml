@@ -13,12 +13,22 @@
         android:orientation="vertical"
         android:padding="10dp">
 
+        <Switch
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/swShowConnectionSettings"
+            android:text="@string/show_connection_settings"
+            android:textSize="12sp"
+            android:textStyle="normal"
+            android:gravity="end|center_vertical"
+            />
+
         <TableLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:stretchColumns="2,4">
 
-            <TableRow>
+            <TableRow android:id="@+id/rowClient">
 
                 <TextView
                     android:layout_marginEnd="2dp"
@@ -45,7 +55,7 @@
                     android:inputType="number" />
             </TableRow>
 
-            <TableRow>
+            <TableRow android:id="@+id/rowServer">
 
                 <TextView
                     android:layout_marginEnd="2dp"
@@ -134,14 +144,6 @@
             </TableRow>
         </TableLayout>
 
-        <TextView
-            android:id="@+id/tvVolumeVal"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:textSize="20sp"
-            android:textStyle="bold" />
-
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -159,6 +161,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textSize="20sp"
+                android:textStyle="bold"
                 android:gravity="end|center_vertical" />
 
             <ImageButton

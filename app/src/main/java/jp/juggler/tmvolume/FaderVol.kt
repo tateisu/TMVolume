@@ -736,47 +736,42 @@ object FaderVol {
         }
     }
 
-    @Suppress("unused")
-    fun fromFader(fader: Double): String {
-        if (fader <= 0.0) return "-∞ dB"
-        if (fader >= 1.0) return "+6 dB"
-        fun Double.formatDb() = String.format("%.1f dB", this)
-        var width = sampleSize
-        var start = 0
-        while (width > 0) {
-            val width2 = (width shr 1)
-            val idx = start + width2
-            if (fader < faderMin(idx)) {
-                width = width2
-                continue
-            } else if (fader > faderMax(idx)) {
-                val skip = width2 + 1
-                width -= skip
-                start += skip
-            } else {
-                return db(idx).formatDb()
-            }
-        }
-        var findDelta = Double.MAX_VALUE
-        var findDb: Double? = null
-        for (i in IntRange(max(0, start - 1), min(sampleSize - 1, start + 1))) {
-            val delta = abs(fader - (faderMax(i) + faderMin(i)) / 2.0)
-            if (delta < findDelta) {
-                findDelta = delta
-                findDb = db(i)
-            }
-        }
-        return findDb?.formatDb() ?: "?? dB"
-    }
+//    @Suppress("unused")
+//    fun fromFader(fader: Double): String {
+//        if (fader <= 0.0) return "-∞ dB"
+//        if (fader >= 1.0) return "+6 dB"
+//        fun Double.formatDb() = String.format("%.1f dB", this)
+//        var width = sampleSize
+//        var start = 0
+//        while (width > 0) {
+//            val width2 = (width shr 1)
+//            val idx = start + width2
+//            if (fader < faderMin(idx)) {
+//                width = width2
+//                continue
+//            } else if (fader > faderMax(idx)) {
+//                val skip = width2 + 1
+//                width -= skip
+//                start += skip
+//            } else {
+//                return db(idx).formatDb()
+//            }
+//        }
+//        var findDelta = Double.MAX_VALUE
+//        var findDb: Double? = null
+//        for (i in IntRange(max(0, start - 1), min(sampleSize - 1, start + 1))) {
+//            val delta = abs(fader - (faderMax(i) + faderMin(i)) / 2.0)
+//            if (delta < findDelta) {
+//                findDelta = delta
+//                findDb = db(i)
+//            }
+//        }
+//        return findDb?.formatDb() ?: "?? dB"
+//    }
 
-    fun formatDb(db: Float) = when {
-        db < -65f -> "-∞ dB"
-        db >= 0f -> String.format("%.1f dB", db)
-        else -> String.format("%.1f dB", db)
-    }
-
-    fun fromDb(db: Float): Double {
-        if (db < -65f ) return 0.0
+    fun Float.toFader(): Double {
+        val db = this
+        if (db < -65f) return 0.0
         if (db >= 6f) return 1.0
         if (db == 0f) return 0.81720435
         var width = sampleSize

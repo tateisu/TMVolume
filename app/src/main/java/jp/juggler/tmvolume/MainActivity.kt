@@ -1,11 +1,13 @@
 package jp.juggler.tmvolume
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
 import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
@@ -15,6 +17,7 @@ import com.google.android.flexbox.FlexboxLayout
 import com.illposed.osc.*
 import com.illposed.osc.transport.udp.OSCPortIn
 import com.illposed.osc.transport.udp.OSCPortOut
+import jp.juggler.tmvolume.FaderVol.toFader
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Runnable
@@ -32,6 +35,7 @@ class MainActivity : ScopedActivity() {
     companion object {
         const val TAG = "TMVolume"
 
+        const val PREF_SHOW_CONNECTION_SETTINGS = "ShowConnectionSettings"
         const val PREF_CLIENT_PORT = "ClientPort"
         const val PREF_SERVER_ADDR = "ServerAddr"
         const val PREF_SERVER_PORT = "ServerPort"
@@ -39,6 +43,21 @@ class MainActivity : ScopedActivity() {
         const val PREF_VOLUME = "Volume"
         const val PREF_BUS = "Bus"
         const val PREF_PRESETS = "Presets"
+
+        const val SEEKBAR_MIN = 0
+        const val SEEKBAR_MAX = 143
+
+        private fun Int.progressToDb(): Float = 6f - (SEEKBAR_MAX - this) * 0.5f
+
+        private fun Float.dbToProgress(): Int = (SEEKBAR_MAX + ((this - 6f) * 2f).toInt())
+            .clip(SEEKBAR_MIN, SEEKBAR_MAX)
+
+        private fun Float.formatDb() = when {
+            this < -65f -> "-∞"
+            else -> String.format("%.1f", this)
+        }
+
+        private val reVolumeVal = """([-+]?[\d.]+)\s*dB\b""".toRegex(RegexOption.IGNORE_CASE)
 
         fun String?.notEmpty() = if (this?.isNotEmpty() == true) this else null
 
@@ -53,7 +72,15 @@ class MainActivity : ScopedActivity() {
                 isEnabled = value
                 alpha = if (value) 1.0f else 0.3f
             }
+
+        fun View.vg(shown: Boolean) =
+            shown.also { visibility = if (it) View.VISIBLE else View.GONE }
     }
+
+    private lateinit var swShowConnectionSettings: Switch
+    private lateinit var rowClient: TableRow
+    private lateinit var rowServer: TableRow
+
 
     private lateinit var tvClientAddr: TextView
     private lateinit var etClientPort: EditText
@@ -64,7 +91,6 @@ class MainActivity : ScopedActivity() {
     private lateinit var rbBusPlayback: RadioButton
     private lateinit var rbBusOutput: RadioButton
 
-    private lateinit var tvVolumeVal: TextView
     private lateinit var sbVolume: SeekBar
     private lateinit var tvVolume: TextView
     private lateinit var btnMinus: ImageButton
@@ -81,6 +107,8 @@ class MainActivity : ScopedActivity() {
     private val channel = Channel<Message>(capacity = CONFLATED)
 
     private var presets = mutableListOf<Int>()
+
+    private var lastSeekbarEdit = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -103,6 +131,8 @@ class MainActivity : ScopedActivity() {
     }
 
     override fun onResume() {
+
+
         super.onResume()
 
         showMyAddress()
@@ -138,10 +168,17 @@ class MainActivity : ScopedActivity() {
             }
         })
 
-    private fun RadioButton.addSaver(key: String, value: Int) =
+    private fun CompoundButton.addSaver(key: String, value: Int) =
         setOnCheckedChangeListener { _, isChecked ->
             if (restoreBusy) return@setOnCheckedChangeListener
             if (isChecked) pref.edit().putInt(key, value).apply()
+        }
+
+    private fun CompoundButton.addSaver(key: String, callback: (Boolean) -> Unit = {}) =
+        setOnCheckedChangeListener { _, isChecked ->
+            if (restoreBusy) return@setOnCheckedChangeListener
+            pref.edit().putBoolean(key, isChecked).apply()
+            callback(isChecked)
         }
 
     private fun initUi() {
@@ -155,6 +192,10 @@ class MainActivity : ScopedActivity() {
             // 最後に呼び出す
             setDisplayShowHomeEnabled(true)
         }
+
+        swShowConnectionSettings = findViewById(R.id.swShowConnectionSettings)
+        rowClient = findViewById(R.id.rowClient)
+        rowServer = findViewById(R.id.rowServer)
 
         tvClientAddr = findViewById(R.id.tvClientAddr)
         etClientPort = findViewById(R.id.etClientPort)
@@ -170,7 +211,6 @@ class MainActivity : ScopedActivity() {
         rbBusOutput = findViewById(R.id.rbBusOutput)
 
         tvMap = findViewById(R.id.tvMap)
-        tvVolumeVal = findViewById(R.id.tvVolumeVal)
 
         btnMinus = findViewById(R.id.btnMinus)
         btnPlus = findViewById(R.id.btnPlus)
@@ -187,12 +227,17 @@ class MainActivity : ScopedActivity() {
         rbBusPlayback.addSaver(PREF_BUS, 1)
         rbBusOutput.addSaver(PREF_BUS, 2)
 
+        swShowConnectionSettings.addSaver(PREF_SHOW_CONNECTION_SETTINGS) { showConnectionSettings() }
+
+        sbVolume.min = SEEKBAR_MIN
+        sbVolume.max = SEEKBAR_MAX
         sbVolume.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onStartTrackingTouch(var1: SeekBar) = Unit
             override fun onStopTrackingTouch(var1: SeekBar) = Unit
-            override fun onProgressChanged(var1: SeekBar, var2: Int, var3: Boolean) {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
                 if (restoreBusy) return
-                pref.edit().putInt(PREF_VOLUME, var1.progress).apply()
+                if (fromUser) lastSeekbarEdit = SystemClock.elapsedRealtime()
+                pref.edit().putInt(PREF_VOLUME, progress).apply()
                 showVolumeNumber()
                 send()
             }
@@ -209,13 +254,16 @@ class MainActivity : ScopedActivity() {
         etServerAddr.setText(pref.getString(PREF_SERVER_ADDR, ""))
         etServerPort.setText(pref.getString(PREF_SERVER_PORT, "7001"))
         etObjectAddress.setText(pref.getString(PREF_OBJECT_ADDR, "/1/volume1"))
-        sbVolume.progress = pref.getInt(PREF_VOLUME, avg(sbVolume.min, sbVolume.max))
-            .clip(sbVolume.min, sbVolume.max)
+        sbVolume.progress = pref.getInt(PREF_VOLUME, avg(SEEKBAR_MIN, SEEKBAR_MAX))
+            .clip(SEEKBAR_MIN, SEEKBAR_MAX)
 
         presets =
             pref.getString(PREF_PRESETS, "")!!.split(",").mapNotNull { it.toIntOrNull() }.sorted()
                 .toMutableList()
         showPresets()
+
+        swShowConnectionSettings.isChecked = pref.getBoolean(PREF_SHOW_CONNECTION_SETTINGS, true)
+        showConnectionSettings()
 
         when (pref.getInt(PREF_BUS, 0)) {
             1 -> rbBusPlayback
@@ -224,6 +272,13 @@ class MainActivity : ScopedActivity() {
         }.isChecked = true
     }
 
+    private fun showConnectionSettings() {
+        val isShown = swShowConnectionSettings.isChecked
+        rowClient.vg(isShown)
+        rowServer.vg(isShown)
+    }
+
+
     private fun showPresets() {
         (0 until flPresets.childCount).reversed().forEach { i ->
             val child = flPresets.getChildAt(i)
@@ -231,21 +286,18 @@ class MainActivity : ScopedActivity() {
                 flPresets.removeViewAt(i)
             }
         }
-        val w = (resources.displayMetrics.density*40f).toInt()
-        val h = (resources.displayMetrics.density*40f).toInt()
+        val w = (resources.displayMetrics.density * 40f).toInt()
+        val h = (resources.displayMetrics.density * 40f).toInt()
         for (progress in presets) {
             flPresets.addView(Button(this).apply {
                 layoutParams = FlexboxLayout.LayoutParams(
                     FlexboxLayout.LayoutParams.WRAP_CONTENT,
                     h
                 ).apply {}
-                val db = 6f - (sbVolume.max - progress) * 0.5f
-                text = if (db < -65f) "-∞" else String.format("%.1f", db)
+                text = progress.progressToDb().formatDb()
                 minWidth = w
                 minimumWidth = w
-                setOnClickListener {
-                    sbVolume.progress = progress
-                }
+                setOnClickListener { sbVolume.progress = progress }
                 setOnLongClickListener {
                     removePreset(progress)
                     true
@@ -273,22 +325,20 @@ class MainActivity : ScopedActivity() {
 
     private fun setVolume(newProgress: Int) {
         val oldVal = sbVolume.progress
-        val newVal = newProgress.clip(sbVolume.min, sbVolume.max)
+        val newVal = newProgress.clip(SEEKBAR_MIN, SEEKBAR_MAX)
         if (newVal != oldVal) sbVolume.progress = newVal
     }
 
+    @SuppressLint("SetTextI18n")
     private fun showVolumeNumber() {
-        val db = 6f - (sbVolume.max - sbVolume.progress) * 0.5f
-        tvVolume.text = FaderVol.formatDb(db)
-        btnMinus.isEnabledAlpha = sbVolume.progress != sbVolume.min
-        btnPlus.isEnabledAlpha = sbVolume.progress != sbVolume.max
+        tvVolume.text = "${sbVolume.progress.progressToDb().formatDb()} dB"
+        btnMinus.isEnabledAlpha = sbVolume.progress != SEEKBAR_MIN
+        btnPlus.isEnabledAlpha = sbVolume.progress != SEEKBAR_MAX
         btnSave.isEnabledAlpha = !presets.contains(sbVolume.progress)
     }
 
-    private fun getFaderValue(): Float {
-        val db = 6f - (sbVolume.max - sbVolume.progress) * 0.5f
-        return FaderVol.fromDb(db).toFloat()
-    }
+    private fun getFaderValue() =
+        sbVolume.progress.progressToDb().toFader().toFloat()
 
     private fun showError(msg: String) {
         if (!Looper.getMainLooper().isCurrentThread) {
@@ -385,6 +435,7 @@ class MainActivity : ScopedActivity() {
 
     private var objectMap = ConcurrentHashMap<String, String>()
 
+
     private val procShowMap: Runnable = Runnable {
         tvMap.text = StringBuilder().apply {
             objectMap.keys().toList().sorted().forEach {
@@ -392,7 +443,16 @@ class MainActivity : ScopedActivity() {
                 append("${it}=${objectMap[it]}")
             }
         }.toString()
-        tvVolumeVal.text = (objectMap["${etObjectAddress.text}Val"] ?: "?").trim(',')
+
+        val strVolumeVal = (objectMap["${etObjectAddress.text}Val"] ?: "?").trim(',')
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastSeekbarEdit >= 1000L) {
+            val progress =
+                reVolumeVal.find(strVolumeVal)
+                    ?.groupValues?.get(1)?.toFloatOrNull()?.dbToProgress()
+                    ?: if (strVolumeVal.contains("∞")) 0 else null
+            if (progress != null && progress != sbVolume.progress) sbVolume.progress = progress
+        }
     }
 
     private fun fireShowMap() {

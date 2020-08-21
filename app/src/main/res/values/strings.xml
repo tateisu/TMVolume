@@ -22,4 +22,5 @@
     <string name="save">Save</string>
     <string name="presets">Presets</string>
     <string name="presets_desc">(long tap to delete preset)</string>
+    <string name="show_connection_settings">Show connection settings</string>
 </resources>
