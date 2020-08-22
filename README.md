@@ -2,7 +2,7 @@
 
 tiny android app that remote control volume of RME TotalMix FX.
 
-![ss1](https://user-images.githubusercontent.com/333944/90967727-6b49ce00-e51e-11ea-8c3d-219ca92a7a66.png)
+<img src="https://user-images.githubusercontent.com/333944/90967727-6b49ce00-e51e-11ea-8c3d-219ca92a7a66.png" width="320">
 
 ## Configuration
 - Open TMVolume and memo the client wifi addr of your device.
