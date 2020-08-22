@@ -2,6 +2,9 @@
   <dictionary name="tateisu">
     <words>
       <w>fader</w>
+      <w>tmvolume</w>
+      <w>xdata</w>
+      <w>ydata</w>
     </words>
   </dictionary>
 </component>

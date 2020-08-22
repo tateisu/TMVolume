@@ -13,7 +13,7 @@
         android:orientation="vertical"
         android:padding="10dp">
 
-        <Switch
+        <androidx.appcompat.widget.SwitchCompat
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:id="@+id/swShowConnectionSettings"
@@ -192,18 +192,18 @@
             android:paddingStart="20dp"
             android:paddingEnd="20dp" />
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/presets"
+            android:textSize="12sp"
+            />
+
         <com.google.android.flexbox.FlexboxLayout
             android:id="@+id/flPresets"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             app:flexWrap="wrap">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/presets"
-                android:textSize="12sp"
-                app:layout_alignSelf="center" />
 
             <ImageButton
                 android:id="@+id/btnSave"
@@ -213,22 +213,38 @@
                 android:contentDescription="@string/save"
                 android:src="@drawable/ic_add"
                 app:layout_alignSelf="center" />
-
         </com.google.android.flexbox.FlexboxLayout>
 
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp"
+        android:paddingBottom="4dp"
+        >
         <TextView
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/presets_desc"
-            android:gravity="end"
+            android:text="@string/received_statuses"
             android:textSize="12sp" />
+        <View
+            android:id="@+id/vPing"
+            android:layout_marginStart="4dp"
+            android:layout_width="16dp"
+            android:layout_height="16dp"/>
+
     </LinearLayout>
 
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:padding="12dp"
+        android:padding="10dp"
         android:clipToPadding="false"
         android:scrollbarStyle="outsideOverlay"
         android:background="#eee"

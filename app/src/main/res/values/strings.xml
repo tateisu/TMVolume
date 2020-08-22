@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">TMVolume</string>
+    <string name="app_name" translatable="false">TMVolume</string>
 
     <string name="client">Client</string>
     <string name="server">Server</string>
@@ -13,14 +13,12 @@
 
     <string name="object_address">Object Addr.</string>
 
-    <string name="volume_min">Volume Min.</string>
-    <string name="volume_max">Volume Max.</string>
     <string name="volume">Volume</string>
     <string name="decrease">Decrease</string>
     <string name="increase">Increase</string>
     <string name="header_subtitle">Volume controller for TotalMix FX</string>
     <string name="save">Save</string>
-    <string name="presets">Presets</string>
-    <string name="presets_desc">(long tap to delete preset)</string>
+    <string name="presets">Presets (long tap to delete)</string>
     <string name="show_connection_settings">Show connection settings</string>
+    <string name="received_statuses">Received statuses</string>
 </resources>

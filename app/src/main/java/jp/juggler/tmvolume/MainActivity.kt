@@ -3,6 +3,7 @@ package jp.juggler.tmvolume
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
+import android.graphics.Color
 import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.os.Handler
@@ -13,6 +14,7 @@ import android.text.TextWatcher
 import android.util.Log
 import android.view.View
 import android.widget.*
+import androidx.appcompat.widget.SwitchCompat
 import com.google.android.flexbox.FlexboxLayout
 import com.illposed.osc.*
 import com.illposed.osc.transport.udp.OSCPortIn
@@ -29,6 +31,8 @@ import java.math.BigInteger
 import java.net.InetAddress
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
+
 
 class MainActivity : ScopedActivity() {
 
@@ -44,6 +48,13 @@ class MainActivity : ScopedActivity() {
         const val PREF_BUS = "Bus"
         const val PREF_PRESETS = "Presets"
 
+        // 情報を受信したら画面の一部を光らせる
+        const val PingAnimationDuration = 300f
+        const val PingColorRed = 0xff.toFloat()
+        const val PingColorGreen = 0x80.toFloat()
+        const val PingColorBlue = 0x00.toFloat()
+
+        // シークバーの範囲。 0:-∞db, 1:-65db ,,, 143:+6 db (0.5db単位)
         const val SEEKBAR_MIN = 0
         const val SEEKBAR_MAX = 143
 
@@ -62,6 +73,8 @@ class MainActivity : ScopedActivity() {
         fun String?.notEmpty() = if (this?.isNotEmpty() == true) this else null
 
         fun Int.clip(min: Int, max: Int) = if (this < min) min else if (this > max) max else this
+        fun Float.clip(min: Float, max: Float) =
+            if (this < min) min else if (this > max) max else this
 
         fun avg(a: Int, b: Int) = (a + b) / 2
 
@@ -77,10 +90,20 @@ class MainActivity : ScopedActivity() {
             shown.also { visibility = if (it) View.VISIBLE else View.GONE }
     }
 
-    private lateinit var swShowConnectionSettings: Switch
+    class Message(
+        val serverAddr: String,
+        val serverPort: Int,
+        val busAddr: String,
+        val objectAddr: String,
+        val args: ArrayList<Any>
+    )
+
+    private lateinit var pref: SharedPreferences
+    private lateinit var handler: Handler
+
+    private lateinit var swShowConnectionSettings: SwitchCompat
     private lateinit var rowClient: TableRow
     private lateinit var rowServer: TableRow
-
 
     private lateinit var tvClientAddr: TextView
     private lateinit var etClientPort: EditText
@@ -98,17 +121,67 @@ class MainActivity : ScopedActivity() {
 
     private lateinit var flPresets: FlexboxLayout
     private lateinit var btnSave: ImageButton
+    private lateinit var vPing: View
 
     private lateinit var tvMap: TextView
 
-    private var restoreBusy = false
-    private lateinit var pref: SharedPreferences
-    private lateinit var handler: Handler
     private val channel = Channel<Message>(capacity = CONFLATED)
+
+    private var restoreBusy = false
 
     private var presets = mutableListOf<Int>()
 
+    private var receiver: OSCPortIn? = null
+
     private var lastSeekbarEdit = 0L
+
+    private val lastEventReceived = AtomicLong(0L)
+
+    private var objectMap = ConcurrentHashMap<String, String>()
+
+    private val procShowMap: Runnable = Runnable {
+        tvMap.text = StringBuilder().apply {
+            objectMap.keys().toList().sorted().forEach {
+                if (isNotEmpty()) append("\n")
+                append("${it}=${objectMap[it]}")
+            }
+        }.toString()
+
+        val strVolumeVal = (objectMap["${etObjectAddress.text}Val"] ?: "?").trim(',')
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastSeekbarEdit >= 1000L) {
+            val progress =
+                reVolumeVal.find(strVolumeVal)
+                    ?.groupValues?.get(1)?.toFloatOrNull()?.dbToProgress()
+                    ?: if (strVolumeVal.contains("∞")) 0 else null
+            if (progress != null && progress != sbVolume.progress) sbVolume.progress = progress
+        }
+    }
+
+    private val procPingColor: Runnable = object : Runnable {
+        override fun run() {
+            handler.removeCallbacks(this)
+
+            val now = SystemClock.elapsedRealtime()
+            // t: 0.0f～1.0f イベント発生からの時間経過
+            val t = (now - lastEventReceived.get())
+                    .toFloat()
+                    .div(PingAnimationDuration)
+                    .clip(0f, 1f)
+
+            fun Float.xt() = ((1f - t) * this).toInt()
+            vPing.setBackgroundColor(
+                Color.rgb(
+                    PingColorRed.xt(),
+                    PingColorGreen.xt(),
+                    PingColorBlue.xt()
+                )
+            )
+            if (t < 1f) handler.postDelayed(this, 50L)
+        }
+    }
+
+    //////////////////////////////////////////////////////////////
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -146,6 +219,7 @@ class MainActivity : ScopedActivity() {
         super.onPause()
         stopListen()
         handler.removeCallbacks(procShowMap)
+        handler.removeCallbacks(procPingColor)
     }
 
     override fun onRestoreInstanceState(savedInstanceState: Bundle) {
@@ -191,6 +265,13 @@ class MainActivity : ScopedActivity() {
             setLogo(R.drawable.header_logo)
             // 最後に呼び出す
             setDisplayShowHomeEnabled(true)
+
+            try {
+                val versionName = packageManager.getPackageInfo(packageName, 0).versionName
+                title = "${getString(R.string.app_name)} v$versionName"
+            } catch (ex: Throwable) {
+                Log.e(TAG, "error", ex)
+            }
         }
 
         swShowConnectionSettings = findViewById(R.id.swShowConnectionSettings)
@@ -217,6 +298,7 @@ class MainActivity : ScopedActivity() {
 
         flPresets = findViewById(R.id.flPresets)
         btnSave = findViewById(R.id.btnSave)
+        vPing = findViewById(R.id.vPing)
 
         etClientPort.addSaver(PREF_CLIENT_PORT) { startListen() }
         etServerAddr.addSaver(PREF_SERVER_ADDR)
@@ -246,6 +328,7 @@ class MainActivity : ScopedActivity() {
         btnPlus.setOnClickListener { setVolume(sbVolume.progress + 1) }
         btnMinus.setOnClickListener { setVolume(sbVolume.progress - 1) }
         btnSave.setOnClickListener { addPreset() }
+
     }
 
 
@@ -257,12 +340,16 @@ class MainActivity : ScopedActivity() {
         sbVolume.progress = pref.getInt(PREF_VOLUME, avg(SEEKBAR_MIN, SEEKBAR_MAX))
             .clip(SEEKBAR_MIN, SEEKBAR_MAX)
 
-        presets =
-            pref.getString(PREF_PRESETS, "")!!.split(",").mapNotNull { it.toIntOrNull() }.sorted()
-                .toMutableList()
+        presets = pref.getString(PREF_PRESETS, "")!!
+            .split(",")
+            .mapNotNull { it.toIntOrNull() }
+            .sorted()
+            .toMutableList()
+
         showPresets()
 
         swShowConnectionSettings.isChecked = pref.getBoolean(PREF_SHOW_CONNECTION_SETTINGS, true)
+
         showConnectionSettings()
 
         when (pref.getInt(PREF_BUS, 0)) {
@@ -348,13 +435,6 @@ class MainActivity : ScopedActivity() {
         Toast.makeText(applicationContext, msg, Toast.LENGTH_SHORT).show()
     }
 
-    class Message(
-        val serverAddr: String,
-        val serverPort: Int,
-        val busAddr: String,
-        val objectAddr: String,
-        val args: ArrayList<Any>
-    )
 
     private fun send(
         serverAddr: String? = etServerAddr.text.toString().trim().notEmpty(),
@@ -433,27 +513,6 @@ class MainActivity : ScopedActivity() {
         }
     }
 
-    private var objectMap = ConcurrentHashMap<String, String>()
-
-
-    private val procShowMap: Runnable = Runnable {
-        tvMap.text = StringBuilder().apply {
-            objectMap.keys().toList().sorted().forEach {
-                if (isNotEmpty()) append("\n")
-                append("${it}=${objectMap[it]}")
-            }
-        }.toString()
-
-        val strVolumeVal = (objectMap["${etObjectAddress.text}Val"] ?: "?").trim(',')
-        val now = SystemClock.elapsedRealtime()
-        if (now - lastSeekbarEdit >= 1000L) {
-            val progress =
-                reVolumeVal.find(strVolumeVal)
-                    ?.groupValues?.get(1)?.toFloatOrNull()?.dbToProgress()
-                    ?: if (strVolumeVal.contains("∞")) 0 else null
-            if (progress != null && progress != sbVolume.progress) sbVolume.progress = progress
-        }
-    }
 
     private fun fireShowMap() {
         handler.removeCallbacks(procShowMap)
@@ -478,7 +537,6 @@ class MainActivity : ScopedActivity() {
         }
     }
 
-    private var receiver: OSCPortIn? = null
 
     private fun stopListen() {
         try {
@@ -498,6 +556,7 @@ class MainActivity : ScopedActivity() {
         }
         objectMap = ConcurrentHashMap()
         fireShowMap()
+        handler.post(procPingColor)
         receiver = try {
             val port = etClientPort.text.toString().trim().toIntOrNull()
             if (port == null || port <= 1024) null else OSCPortIn(port).apply {
@@ -517,6 +576,8 @@ class MainActivity : ScopedActivity() {
                             objectMap[entry.key] = entry.value
                         }
                         fireShowMap()
+                        lastEventReceived.set(SystemClock.elapsedRealtime())
+                        handler.post(procPingColor)
                     }
                 })
                 startListening()
@@ -527,6 +588,8 @@ class MainActivity : ScopedActivity() {
             null
         }
     }
+
+
 }
 
 /*
