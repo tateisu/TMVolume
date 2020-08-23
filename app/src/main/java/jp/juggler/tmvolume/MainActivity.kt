@@ -7,7 +7,6 @@ import android.graphics.Color
 import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.os.Handler
-import android.os.Looper
 import android.os.SystemClock
 import android.text.Editable
 import android.text.TextWatcher
@@ -50,12 +49,12 @@ class MainActivity : ScopedActivity() {
 
         // 情報を受信したら画面の一部を光らせる
         const val PingAnimationDuration = 300f
-        const val PingColorRed = 0xff.toFloat()
-        const val PingColorGreen = 0x80.toFloat()
-        const val PingColorBlue = 0x00.toFloat()
+        const val PingColorRed = 0x40.toFloat()
+        const val PingColorGreen = 0xff.toFloat()
+        const val PingColorBlue = 0x80.toFloat()
 
         // シークバーの範囲。 0:-∞db, 1:-65db ,,, 143:+6 db (0.5db単位)
-        const val SEEKBAR_MIN = 0
+        const val SEEKBAR_MIN = 0 // API26未満では常に0
         const val SEEKBAR_MAX = 143
 
         private fun Int.progressToDb(): Float = 6f - (SEEKBAR_MAX - this) * 0.5f
@@ -69,25 +68,6 @@ class MainActivity : ScopedActivity() {
         }
 
         private val reVolumeVal = """([-+]?[\d.]+)\s*dB\b""".toRegex(RegexOption.IGNORE_CASE)
-
-        fun String?.notEmpty() = if (this?.isNotEmpty() == true) this else null
-
-        fun Int.clip(min: Int, max: Int) = if (this < min) min else if (this > max) max else this
-        fun Float.clip(min: Float, max: Float) =
-            if (this < min) min else if (this > max) max else this
-
-        fun avg(a: Int, b: Int) = (a + b) / 2
-
-        var View.isEnabledAlpha: Boolean
-            get() = isEnabled
-            set(value) {
-                if (value == isEnabled) return
-                isEnabled = value
-                alpha = if (value) 1.0f else 0.3f
-            }
-
-        fun View.vg(shown: Boolean) =
-            shown.also { visibility = if (it) View.VISIBLE else View.GONE }
     }
 
     class Message(
@@ -165,9 +145,9 @@ class MainActivity : ScopedActivity() {
             val now = SystemClock.elapsedRealtime()
             // t: 0.0f～1.0f イベント発生からの時間経過
             val t = (now - lastEventReceived.get())
-                    .toFloat()
-                    .div(PingAnimationDuration)
-                    .clip(0f, 1f)
+                .toFloat()
+                .div(PingAnimationDuration)
+                .clip(0f, 1f)
 
             fun Float.xt() = ((1f - t) * this).toInt()
             vPing.setBackgroundColor(
@@ -311,7 +291,8 @@ class MainActivity : ScopedActivity() {
 
         swShowConnectionSettings.addSaver(PREF_SHOW_CONNECTION_SETTINGS) { showConnectionSettings() }
 
-        sbVolume.min = SEEKBAR_MIN
+        // API26未満では常に0
+        // sbVolume.min = SEEKBAR_MIN
         sbVolume.max = SEEKBAR_MAX
         sbVolume.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onStartTrackingTouch(var1: SeekBar) = Unit
@@ -428,13 +409,12 @@ class MainActivity : ScopedActivity() {
         sbVolume.progress.progressToDb().toFader().toFloat()
 
     private fun showError(msg: String) {
-        if (!Looper.getMainLooper().isCurrentThread) {
+        if (handler.looper.thread.id != Thread.currentThread().id) {
             handler.post { showError(msg) }
             return
         }
         Toast.makeText(applicationContext, msg, Toast.LENGTH_SHORT).show()
     }
-
 
     private fun send(
         serverAddr: String? = etServerAddr.text.toString().trim().notEmpty(),
@@ -497,9 +477,11 @@ class MainActivity : ScopedActivity() {
         }
     }
 
+
+
     private fun showMyAddress() {
         tvClientAddr.text = try {
-            val wm = getSystemService(Context.WIFI_SERVICE) as WifiManager
+            val wm :WifiManager = systemService( WIFI_SERVICE)
             InetAddress.getByAddress(
                 BigInteger.valueOf(
                     wm.connectionInfo.ipAddress.toLong()
@@ -512,7 +494,6 @@ class MainActivity : ScopedActivity() {
             "?"
         }
     }
-
 
     private fun fireShowMap() {
         handler.removeCallbacks(procShowMap)
