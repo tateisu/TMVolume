@@ -166,32 +166,37 @@ class MainActivity : ScopedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        handler = Handler()
         pref = getSharedPreferences("pref", Context.MODE_PRIVATE)
 
+        handler = Handler(mainLooper)
+
         restoreBusy = true
+
         initUi()
+
+        presets = pref.getString(PREF_PRESETS, "")!!
+            .split(",")
+            .mapNotNull { it.toIntOrNull() }
+            .sorted()
+            .toMutableList()
 
         if (savedInstanceState == null) {
             loadPref()
-            restoreBusy = false
+            afterRestore()
         }
 
-        showVolumeNumber()
+        launchSender()
+    }
 
-        startWorker()
-
+    override fun onRestoreInstanceState(savedInstanceState: Bundle) {
+        super.onRestoreInstanceState(savedInstanceState)
+        afterRestore()
     }
 
     override fun onResume() {
-
-
         super.onResume()
-
         showMyAddress()
-
         startListen()
-
         send(objectAddr = "/", value = 1f)
     }
 
@@ -200,12 +205,6 @@ class MainActivity : ScopedActivity() {
         stopListen()
         handler.removeCallbacks(procShowMap)
         handler.removeCallbacks(procPingColor)
-    }
-
-    override fun onRestoreInstanceState(savedInstanceState: Bundle) {
-        super.onRestoreInstanceState(savedInstanceState)
-        restoreBusy = false
-        showVolumeNumber()
     }
 
     ///////////////////////////////////////////////////////
@@ -309,9 +308,7 @@ class MainActivity : ScopedActivity() {
         btnPlus.setOnClickListener { setVolume(sbVolume.progress + 1) }
         btnMinus.setOnClickListener { setVolume(sbVolume.progress - 1) }
         btnSave.setOnClickListener { addPreset() }
-
     }
-
 
     private fun loadPref() {
         etClientPort.setText(pref.getString(PREF_CLIENT_PORT, "9001"))
@@ -321,17 +318,7 @@ class MainActivity : ScopedActivity() {
         sbVolume.progress = pref.getInt(PREF_VOLUME, avg(SEEKBAR_MIN, SEEKBAR_MAX))
             .clip(SEEKBAR_MIN, SEEKBAR_MAX)
 
-        presets = pref.getString(PREF_PRESETS, "")!!
-            .split(",")
-            .mapNotNull { it.toIntOrNull() }
-            .sorted()
-            .toMutableList()
-
-        showPresets()
-
         swShowConnectionSettings.isChecked = pref.getBoolean(PREF_SHOW_CONNECTION_SETTINGS, true)
-
-        showConnectionSettings()
 
         when (pref.getInt(PREF_BUS, 0)) {
             1 -> rbBusPlayback
@@ -340,12 +327,18 @@ class MainActivity : ScopedActivity() {
         }.isChecked = true
     }
 
+    private fun afterRestore() {
+        restoreBusy = false
+        showPresets()
+        showConnectionSettings()
+        showVolumeNumber()
+    }
+
     private fun showConnectionSettings() {
         val isShown = swShowConnectionSettings.isChecked
         rowClient.vg(isShown)
         rowServer.vg(isShown)
     }
-
 
     private fun showPresets() {
         (0 until flPresets.childCount).reversed().forEach { i ->
@@ -405,9 +398,6 @@ class MainActivity : ScopedActivity() {
         btnSave.isEnabledAlpha = !presets.contains(sbVolume.progress)
     }
 
-    private fun getFaderValue() =
-        sbVolume.progress.progressToDb().toFader().toFloat()
-
     private fun showError(msg: String) {
         if (handler.looper.thread.id != Thread.currentThread().id) {
             handler.post { showError(msg) }
@@ -425,7 +415,7 @@ class MainActivity : ScopedActivity() {
             else -> "/1/busInput"
         },
         objectAddr: String? = etObjectAddress.text.toString().trim().notEmpty(),
-        value: Float = getFaderValue()
+        value: Float = sbVolume.progress.progressToDb().toFader().toFloat()
     ) {
         val args = arrayListOf<Any>(value)
 
@@ -455,7 +445,7 @@ class MainActivity : ScopedActivity() {
         }
     }
 
-    private fun startWorker() = launch(activityJob + Dispatchers.IO) {
+    private fun launchSender() = launch(activityJob + Dispatchers.IO) {
         while (true) {
             try {
                 val item = channel.receive()
@@ -477,11 +467,9 @@ class MainActivity : ScopedActivity() {
         }
     }
 
-
-
     private fun showMyAddress() {
         tvClientAddr.text = try {
-            val wm :WifiManager = systemService( WIFI_SERVICE)
+            val wm: WifiManager = systemService(WIFI_SERVICE)
             InetAddress.getByAddress(
                 BigInteger.valueOf(
                     wm.connectionInfo.ipAddress.toLong()
