@@ -4,21 +4,19 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Color
-import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.SystemClock
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
-import android.view.View
 import android.widget.*
-import androidx.appcompat.widget.SwitchCompat
 import com.google.android.flexbox.FlexboxLayout
 import com.illposed.osc.*
 import com.illposed.osc.transport.udp.OSCPortIn
 import com.illposed.osc.transport.udp.OSCPortOut
 import jp.juggler.tmvolume.FaderVol.toFader
+import jp.juggler.tmvolume.databinding.ActivityMainBinding
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Runnable
@@ -26,7 +24,6 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.Channel.Factory.CONFLATED
 import kotlinx.coroutines.launch
 import java.io.IOException
-import java.math.BigInteger
 import java.net.InetAddress
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -78,32 +75,12 @@ class MainActivity : ScopedActivity() {
         val args: ArrayList<Any>
     )
 
+    private val views by lazy {
+        ActivityMainBinding.inflate(layoutInflater)
+    }
+
     private lateinit var pref: SharedPreferences
     private lateinit var handler: Handler
-
-    private lateinit var swShowConnectionSettings: SwitchCompat
-    private lateinit var rowClient: TableRow
-    private lateinit var rowServer: TableRow
-
-    private lateinit var tvClientAddr: TextView
-    private lateinit var etClientPort: EditText
-    private lateinit var etServerAddr: EditText
-    private lateinit var etServerPort: EditText
-    private lateinit var etObjectAddress: EditText
-    private lateinit var rbBusInput: RadioButton
-    private lateinit var rbBusPlayback: RadioButton
-    private lateinit var rbBusOutput: RadioButton
-
-    private lateinit var sbVolume: SeekBar
-    private lateinit var tvVolume: TextView
-    private lateinit var btnMinus: ImageButton
-    private lateinit var btnPlus: ImageButton
-
-    private lateinit var flPresets: FlexboxLayout
-    private lateinit var btnSave: ImageButton
-    private lateinit var vPing: View
-
-    private lateinit var tvMap: TextView
 
     private val channel = Channel<Message>(capacity = CONFLATED)
 
@@ -120,21 +97,22 @@ class MainActivity : ScopedActivity() {
     private var objectMap = ConcurrentHashMap<String, String>()
 
     private val procShowMap: Runnable = Runnable {
-        tvMap.text = StringBuilder().apply {
+        views.tvMap.text = StringBuilder().apply {
             objectMap.keys().toList().sorted().forEach {
                 if (isNotEmpty()) append("\n")
                 append("${it}=${objectMap[it]}")
             }
         }.toString()
 
-        val strVolumeVal = (objectMap["${etObjectAddress.text}Val"] ?: "?").trim(',')
+        val strVolumeVal = (objectMap["${views.etObjectAddress.text}Val"] ?: "?").trim(',')
         val now = SystemClock.elapsedRealtime()
         if (now - lastSeekbarEdit >= 1000L) {
             val progress =
                 reVolumeVal.find(strVolumeVal)
                     ?.groupValues?.get(1)?.toFloatOrNull()?.dbToProgress()
                     ?: if (strVolumeVal.contains("∞")) 0 else null
-            if (progress != null && progress != sbVolume.progress) sbVolume.progress = progress
+            if (progress != null && progress != views.sbVolume.progress) views.sbVolume.progress =
+                progress
         }
     }
 
@@ -150,7 +128,7 @@ class MainActivity : ScopedActivity() {
                 .clip(0f, 1f)
 
             fun Float.xt() = ((1f - t) * this).toInt()
-            vPing.setBackgroundColor(
+            views.vPing.setBackgroundColor(
                 Color.rgb(
                     PingColorRed.xt(),
                     PingColorGreen.xt(),
@@ -236,7 +214,7 @@ class MainActivity : ScopedActivity() {
 
     private fun initUi() {
 
-        setContentView(R.layout.activity_main)
+        setContentView(views.root)
         supportActionBar?.apply {
             setSubtitle(R.string.header_subtitle)
 
@@ -246,54 +224,30 @@ class MainActivity : ScopedActivity() {
             setDisplayShowHomeEnabled(true)
 
             try {
-                val versionName = packageManager.getPackageInfo(packageName, 0).versionName
+                val versionName = packageManager.getPackageInfoCompat(packageName).versionName
                 title = "${getString(R.string.app_name)} v$versionName"
             } catch (ex: Throwable) {
                 Log.e(TAG, "error", ex)
             }
         }
 
-        swShowConnectionSettings = findViewById(R.id.swShowConnectionSettings)
-        rowClient = findViewById(R.id.rowClient)
-        rowServer = findViewById(R.id.rowServer)
 
-        tvClientAddr = findViewById(R.id.tvClientAddr)
-        etClientPort = findViewById(R.id.etClientPort)
-        etServerAddr = findViewById(R.id.etServerAddr)
-        etServerPort = findViewById(R.id.etServerPort)
-        etObjectAddress = findViewById(R.id.etObjectAddress)
-        sbVolume = findViewById(R.id.sbVolume)
 
-        tvVolume = findViewById(R.id.tvVolume)
+        views.etClientPort.addSaver(PREF_CLIENT_PORT) { startListen() }
+        views.etServerAddr.addSaver(PREF_SERVER_ADDR)
+        views.etServerPort.addSaver(PREF_SERVER_PORT)
+        views.etObjectAddress.addSaver(PREF_OBJECT_ADDR)
 
-        rbBusInput = findViewById(R.id.rbBusInput)
-        rbBusPlayback = findViewById(R.id.rbBusPlayback)
-        rbBusOutput = findViewById(R.id.rbBusOutput)
+        views.rbBusInput.addSaver(PREF_BUS, 0)
+        views.rbBusPlayback.addSaver(PREF_BUS, 1)
+        views.rbBusOutput.addSaver(PREF_BUS, 2)
 
-        tvMap = findViewById(R.id.tvMap)
-
-        btnMinus = findViewById(R.id.btnMinus)
-        btnPlus = findViewById(R.id.btnPlus)
-
-        flPresets = findViewById(R.id.flPresets)
-        btnSave = findViewById(R.id.btnSave)
-        vPing = findViewById(R.id.vPing)
-
-        etClientPort.addSaver(PREF_CLIENT_PORT) { startListen() }
-        etServerAddr.addSaver(PREF_SERVER_ADDR)
-        etServerPort.addSaver(PREF_SERVER_PORT)
-        etObjectAddress.addSaver(PREF_OBJECT_ADDR)
-
-        rbBusInput.addSaver(PREF_BUS, 0)
-        rbBusPlayback.addSaver(PREF_BUS, 1)
-        rbBusOutput.addSaver(PREF_BUS, 2)
-
-        swShowConnectionSettings.addSaver(PREF_SHOW_CONNECTION_SETTINGS) { showConnectionSettings() }
+        views.swShowConnectionSettings.addSaver(PREF_SHOW_CONNECTION_SETTINGS) { showConnectionSettings() }
 
         // API26未満では常に0
         // sbVolume.min = SEEKBAR_MIN
-        sbVolume.max = SEEKBAR_MAX
-        sbVolume.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+        views.sbVolume.max = SEEKBAR_MAX
+        views.sbVolume.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onStartTrackingTouch(var1: SeekBar) = Unit
             override fun onStopTrackingTouch(var1: SeekBar) = Unit
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
@@ -305,25 +259,26 @@ class MainActivity : ScopedActivity() {
             }
         })
 
-        btnPlus.setOnClickListener { setVolume(sbVolume.progress + 1) }
-        btnMinus.setOnClickListener { setVolume(sbVolume.progress - 1) }
-        btnSave.setOnClickListener { addPreset() }
+        views.btnPlus.setOnClickListener { setVolume(views.sbVolume.progress + 1) }
+        views.btnMinus.setOnClickListener { setVolume(views.sbVolume.progress - 1) }
+        views.btnSave.setOnClickListener { addPreset() }
     }
 
     private fun loadPref() {
-        etClientPort.setText(pref.getString(PREF_CLIENT_PORT, "9001"))
-        etServerAddr.setText(pref.getString(PREF_SERVER_ADDR, ""))
-        etServerPort.setText(pref.getString(PREF_SERVER_PORT, "7001"))
-        etObjectAddress.setText(pref.getString(PREF_OBJECT_ADDR, "/1/volume1"))
-        sbVolume.progress = pref.getInt(PREF_VOLUME, avg(SEEKBAR_MIN, SEEKBAR_MAX))
+        views.etClientPort.setText(pref.getString(PREF_CLIENT_PORT, "9001"))
+        views.etServerAddr.setText(pref.getString(PREF_SERVER_ADDR, ""))
+        views.etServerPort.setText(pref.getString(PREF_SERVER_PORT, "7001"))
+        views.etObjectAddress.setText(pref.getString(PREF_OBJECT_ADDR, "/1/volume1"))
+        views.sbVolume.progress = pref.getInt(PREF_VOLUME, avg(SEEKBAR_MIN, SEEKBAR_MAX))
             .clip(SEEKBAR_MIN, SEEKBAR_MAX)
 
-        swShowConnectionSettings.isChecked = pref.getBoolean(PREF_SHOW_CONNECTION_SETTINGS, true)
+        views.swShowConnectionSettings.isChecked =
+            pref.getBoolean(PREF_SHOW_CONNECTION_SETTINGS, true)
 
         when (pref.getInt(PREF_BUS, 0)) {
-            1 -> rbBusPlayback
-            2 -> rbBusOutput
-            else -> rbBusInput
+            1 -> views.rbBusPlayback
+            2 -> views.rbBusOutput
+            else -> views.rbBusInput
         }.isChecked = true
     }
 
@@ -335,22 +290,22 @@ class MainActivity : ScopedActivity() {
     }
 
     private fun showConnectionSettings() {
-        val isShown = swShowConnectionSettings.isChecked
-        rowClient.vg(isShown)
-        rowServer.vg(isShown)
+        val isShown = views.swShowConnectionSettings.isChecked
+        views.rowClient.vg(isShown)
+        views.rowServer.vg(isShown)
     }
 
     private fun showPresets() {
-        (0 until flPresets.childCount).reversed().forEach { i ->
-            val child = flPresets.getChildAt(i)
+        (0 until views.flPresets.childCount).reversed().forEach { i ->
+            val child = views.flPresets.getChildAt(i)
             if (child is Button) {
-                flPresets.removeViewAt(i)
+                views.flPresets.removeViewAt(i)
             }
         }
         val w = (resources.displayMetrics.density * 40f).toInt()
         val h = (resources.displayMetrics.density * 40f).toInt()
         for (progress in presets) {
-            flPresets.addView(Button(this).apply {
+            views.flPresets.addView(Button(this).apply {
                 layoutParams = FlexboxLayout.LayoutParams(
                     FlexboxLayout.LayoutParams.WRAP_CONTENT,
                     h
@@ -358,7 +313,7 @@ class MainActivity : ScopedActivity() {
                 text = progress.progressToDb().formatDb()
                 minWidth = w
                 minimumWidth = w
-                setOnClickListener { sbVolume.progress = progress }
+                setOnClickListener { views.sbVolume.progress = progress }
                 setOnLongClickListener {
                     removePreset(progress)
                     true
@@ -368,7 +323,7 @@ class MainActivity : ScopedActivity() {
     }
 
     private fun addPreset() {
-        val progress = sbVolume.progress
+        val progress = views.sbVolume.progress
         if (presets.contains(progress)) return
         presets.add(progress)
         presets.sort()
@@ -385,17 +340,17 @@ class MainActivity : ScopedActivity() {
     }
 
     private fun setVolume(newProgress: Int) {
-        val oldVal = sbVolume.progress
+        val oldVal = views.sbVolume.progress
         val newVal = newProgress.clip(SEEKBAR_MIN, SEEKBAR_MAX)
-        if (newVal != oldVal) sbVolume.progress = newVal
+        if (newVal != oldVal) views.sbVolume.progress = newVal
     }
 
     @SuppressLint("SetTextI18n")
     private fun showVolumeNumber() {
-        tvVolume.text = "${sbVolume.progress.progressToDb().formatDb()} dB"
-        btnMinus.isEnabledAlpha = sbVolume.progress != SEEKBAR_MIN
-        btnPlus.isEnabledAlpha = sbVolume.progress != SEEKBAR_MAX
-        btnSave.isEnabledAlpha = !presets.contains(sbVolume.progress)
+        views.tvVolume.text = "${views.sbVolume.progress.progressToDb().formatDb()} dB"
+        views.btnMinus.isEnabledAlpha = views.sbVolume.progress != SEEKBAR_MIN
+        views.btnPlus.isEnabledAlpha = views.sbVolume.progress != SEEKBAR_MAX
+        views.btnSave.isEnabledAlpha = !presets.contains(views.sbVolume.progress)
     }
 
     private fun showError(msg: String) {
@@ -407,15 +362,15 @@ class MainActivity : ScopedActivity() {
     }
 
     private fun send(
-        serverAddr: String? = etServerAddr.text.toString().trim().notEmpty(),
-        serverPort: Int? = etServerPort.text.toString().trim().notEmpty()?.toIntOrNull(),
+        serverAddr: String? = views.etServerAddr.text.toString().trim().notEmpty(),
+        serverPort: Int? = views.etServerPort.text.toString().trim().notEmpty()?.toIntOrNull(),
         busAddr: String = when {
-            rbBusPlayback.isChecked -> "/1/busPlayback"
-            rbBusOutput.isChecked -> "/1/busOutput"
+            views.rbBusPlayback.isChecked -> "/1/busPlayback"
+            views.rbBusOutput.isChecked -> "/1/busOutput"
             else -> "/1/busInput"
         },
-        objectAddr: String? = etObjectAddress.text.toString().trim().notEmpty(),
-        value: Float = sbVolume.progress.progressToDb().toFader().toFloat()
+        objectAddr: String? = views.etObjectAddress.text.toString().trim().notEmpty(),
+        value: Float = views.sbVolume.progress.progressToDb().toFader().toFloat()
     ) {
         val args = arrayListOf<Any>(value)
 
@@ -457,6 +412,7 @@ class MainActivity : ScopedActivity() {
                     try {
                         port.close()
                     } catch (ex: IOException) {
+                        ex.printStackTrace()
                     }
                 }
             } catch (ex: CancellationException) {
@@ -468,15 +424,8 @@ class MainActivity : ScopedActivity() {
     }
 
     private fun showMyAddress() {
-        tvClientAddr.text = try {
-            val wm: WifiManager = systemService(WIFI_SERVICE)
-            InetAddress.getByAddress(
-                BigInteger.valueOf(
-                    wm.connectionInfo.ipAddress.toLong()
-                )
-                    .toByteArray()
-                    .reversedArray()
-            ).hostAddress
+        views.tvClientAddr.text = try {
+            getV4Addresses().joinToString(", ")
         } catch (ex: Throwable) {
             ex.printStackTrace()
             "?"
@@ -527,7 +476,7 @@ class MainActivity : ScopedActivity() {
         fireShowMap()
         handler.post(procPingColor)
         receiver = try {
-            val port = etClientPort.text.toString().trim().toIntOrNull()
+            val port = views.etClientPort.text.toString().trim().toIntOrNull()
             if (port == null || port <= 1024) null else OSCPortIn(port).apply {
                 addPacketListener(object : OSCPacketListener {
                     override fun handleBadData(event: OSCBadDataEvent?) = Unit
@@ -557,8 +506,6 @@ class MainActivity : ScopedActivity() {
             null
         }
     }
-
-
 }
 
 /*
@@ -575,10 +522,9 @@ http://www.rme-audio.de/download/osc_table_totalmix.zip
 次にボリュームメッセージを送る。
 末尾のチャネル番号は各バスのTotalMix上の表示順。stereo/mono切り替えの有無で割り当てが変わる
 /1/volume1 ～ /1/volume6 (num)
+/1/mastervolume
 (num)はフェーダーの値を入れる。カーブがあるらしくそのままdbに変換することはできない
 
 TotalMax のOptions-SettingsのOSCタブの Remote Controller Address と Port Outgoing に設定したホストとアドレスに
-
-
 
 */
