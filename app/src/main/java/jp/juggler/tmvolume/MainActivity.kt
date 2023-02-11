@@ -522,7 +522,7 @@ http://www.rme-audio.de/download/osc_table_totalmix.zip
 次にボリュームメッセージを送る。
 末尾のチャネル番号は各バスのTotalMix上の表示順。stereo/mono切り替えの有無で割り当てが変わる
 /1/volume1 ～ /1/volume6 (num)
-/1/mastervolume
+/1/mastervolume (num)
 (num)はフェーダーの値を入れる。カーブがあるらしくそのままdbに変換することはできない
 
 TotalMax のOptions-SettingsのOSCタブの Remote Controller Address と Port Outgoing に設定したホストとアドレスに
